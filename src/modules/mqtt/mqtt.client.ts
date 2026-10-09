@@ -2,6 +2,7 @@ import mqtt, { MqttClient } from 'mqtt';
 import type { Pool } from 'pg';
 import { env } from '../../config/environment';
 import { handleChallenge } from './mqtt.service';
+import { setMqttRuntimeStatus } from './mqtt.status';
 
 export interface MqttHandle {
   stop: () => Promise<void>;
@@ -25,6 +26,7 @@ function randomSuffix(): string {
 export function startMqttClient(pool: Pool): MqttHandle {
   const { brokerHost, brokerPort, candidateId } = env.mqtt;
   const clientId = `fse01-${candidateId}-${randomSuffix()}`;
+  setMqttRuntimeStatus({ client_id: clientId, enabled: true });
 
   const challengeTopic = `fse-01/${candidateId}/challenge`;
   const responseTopic = `fse-01/${candidateId}/response`;
@@ -67,12 +69,18 @@ export function startMqttClient(pool: Pool): MqttHandle {
     if (stopped) return;
     const delay = Math.min(BASE_BACKOFF_MS * 2 ** attempt, MAX_BACKOFF_MS);
     attempt += 1;
+    setMqttRuntimeStatus({ reconnect_attempts: attempt });
     console.warn(`[mqtt] disconnected; reconnecting in ${delay}ms (attempt ${attempt})`);
     reconnectTimer = setTimeout(() => client.reconnect(), delay);
   }
 
   client.on('connect', () => {
     attempt = 0;
+    setMqttRuntimeStatus({
+      connected: true,
+      last_connected_at: new Date().toISOString(),
+      reconnect_attempts: 0,
+    });
     console.log(`[mqtt] connected to ${brokerHost}:${brokerPort} as ${clientId}`);
     client.subscribe(challengeTopic, { qos: 1 }, (err) => {
       if (err) {
@@ -82,7 +90,10 @@ export function startMqttClient(pool: Pool): MqttHandle {
       console.log(`[mqtt] subscribed to ${challengeTopic}`);
       publishStatus('ONLINE'); // after successful subscription
       if (heartbeat) clearInterval(heartbeat);
-      heartbeat = setInterval(() => publishStatus('HEARTBEAT'), HEARTBEAT_MS);
+      heartbeat = setInterval(() => {
+        publishStatus('HEARTBEAT');
+        setMqttRuntimeStatus({ last_heartbeat_at: new Date().toISOString() });
+      }, HEARTBEAT_MS);
     });
   });
 
@@ -96,6 +107,11 @@ export function startMqttClient(pool: Pool): MqttHandle {
     }
     try {
       const response = await handleChallenge(pool, raw, candidateId);
+      setMqttRuntimeStatus({
+        last_challenge_id: (response as any).challenge_id ?? null,
+        last_challenge_status: (response as any).status ?? null,
+        last_response_at: new Date().toISOString(),
+      });
       client.publish(responseTopic, JSON.stringify(response), { qos: 1, retain: false }, (err) => {
         if (err) console.error('[mqtt] response publish failed:', err.message);
         else console.log(`[mqtt] published response for challenge`, (response as any).challenge_id);
@@ -107,6 +123,7 @@ export function startMqttClient(pool: Pool): MqttHandle {
 
   client.on('error', (err) => console.error('[mqtt] client error:', err.message));
   client.on('close', () => {
+    setMqttRuntimeStatus({ connected: false, last_disconnected_at: new Date().toISOString() });
     if (heartbeat) {
       clearInterval(heartbeat);
       heartbeat = null;

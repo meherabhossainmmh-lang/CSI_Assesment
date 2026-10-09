@@ -53,6 +53,57 @@ export async function getPendingEvents(db: Queryable, sourceId: string | null) {
   return res.rows;
 }
 
+/**
+ * Read-only analytics for the dashboard charts, computed from durable rows:
+ * hourly production trend over the last N hours and per-line net totals.
+ */
+export async function getAnalytics(db: Queryable, hours = 24) {
+  const trend = await db.query(
+    `WITH buckets AS (
+       SELECT generate_series(
+         date_trunc('hour', now()) - make_interval(hours => $1),
+         date_trunc('hour', now()),
+         interval '1 hour') AS bucket
+     )
+     SELECT to_char(b.bucket, 'YYYY-MM-DD"T"HH24:00:00') AS hour,
+       COALESCE(SUM(CASE WHEN e.event_type='COUNT' AND e.status='ACCEPTED'
+                         THEN e.quantity ELSE 0 END),0) AS count_total,
+       COALESCE(SUM(CASE WHEN e.event_type='VOID' AND e.status='ACCEPTED'
+                         THEN e.reversed_quantity ELSE 0 END),0) AS void_total
+     FROM buckets b
+     LEFT JOIN production_events e ON date_trunc('hour', e.received_at) = b.bucket
+     GROUP BY b.bucket
+     ORDER BY b.bucket`,
+    [hours],
+  );
+
+  const byLine = await db.query(
+    `SELECT source_id,
+       COALESCE(SUM(CASE WHEN event_type='COUNT' AND status='ACCEPTED'
+                         THEN quantity ELSE 0 END),0)
+       - COALESCE(SUM(CASE WHEN event_type='VOID' AND status='ACCEPTED'
+                         THEN reversed_quantity ELSE 0 END),0) AS net_total,
+       COUNT(*) FILTER (WHERE status='ACCEPTED') AS processed_events
+     FROM production_events
+     GROUP BY source_id
+     ORDER BY source_id`,
+  );
+
+  return {
+    trend: trend.rows.map((r) => ({
+      hour: r.hour,
+      count_total: Number(r.count_total),
+      void_total: Number(r.void_total),
+      net_total: Number(r.count_total) - Number(r.void_total),
+    })),
+    by_line: byLine.rows.map((r) => ({
+      source_id: r.source_id,
+      net_total: Number(r.net_total),
+      processed_events: Number(r.processed_events),
+    })),
+  };
+}
+
 /** Unresolved references + rejected submissions + conflict attempts. */
 export async function getExceptions(db: Queryable, sourceId: string | null) {
   const res = await db.query(
