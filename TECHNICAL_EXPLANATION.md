@@ -91,6 +91,29 @@ Browser (React) <-- JSON -- Vite dev proxy <-- Express (state/analytics/mqtt-sta
 * Additional endpoints are strictly additive and read-only where possible; the three assessment APIs
   (`POST /api/events`, `GET /api/state`, `POST /api/ack`) keep their exact behavior.
 
+## FSE-01 change request (quantity limit, rejected tracking, source filter, rejected card)
+
+Implemented without a rewrite: the same modular monolith, same shared `processEvents()`/`getSummary()`, no new
+microservices, no duplicated rules, no new tables or migrations.
+
+1. **Quantity limit 1..500 (inclusive).** `toCountQuantity()` in `modules/events/events.validation.ts` now enforces an
+   integer in `[COUNT_MIN, COUNT_MAX] = [1, 500]` and returns the reason `COUNT quantity must be an integer between 1
+   and 500`. Because REST and MQTT both call the shared `validateEvent()`/`processEvents()`, the rule applies to both
+   channels automatically. Rejected attempts are stored as `submission_attempts` rows with
+   `classification='REJECTED'` and contribute nothing to `net_total`; VOID/duplicate/conflict behaviour is untouched.
+2. **`rejected_submissions`.** `getSummary()` in `modules/state/state.repository.ts` adds one aggregate column:
+   `COUNT(*) FILTER (WHERE classification='REJECTED')` over `submission_attempts`, scoped by the same optional
+   `source_id` predicate as the other fields. It therefore excludes DUPLICATE/CONFLICT/PENDING_REFERENCE, is `0` when
+   empty, and is recomputed on every call (no counters). The MQTT response state includes it for free because the MQTT
+   module reads the shared `getSummary()`.
+3. **Shared source filter.** `frontend/src/hooks/useSourceFilter.tsx` provides `{source, setSource}` via React context.
+   Dashboard, Pending and Exceptions consume it; selecting a source on any page persists across navigation. Pages pass
+   `?source_id=` when set and omit it for *All Sources*. Each page guards in-flight loads (`loadId` ref) so a slow,
+   older response cannot overwrite a newer one.
+4. **Rejected card.** The Dashboard renders a seventh `StatCard` from `summary.rejected_submissions` with a red Ban
+   icon (visually distinct from green/blue success metrics), updates on refresh and with the filter, shows `0`, and the
+   grid gains an `xl:grid-cols-4` column for the seven cards.
+
 ## Assumptions & ambiguities (recorded per instructions)
 
 1. **event_id uniqueness.** §5.1 says an event ID is "globally unique across all production sources," while the DB

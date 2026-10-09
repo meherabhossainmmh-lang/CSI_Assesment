@@ -67,8 +67,9 @@ The REST API listens on `http://localhost:3000`; the dashboard on `http://localh
 Built with React + TypeScript + Vite + Tailwind CSS + React Router + Lucide icons + Recharts.
 Six pages, all driven by real backend data (no mock data, no fake totals):
 
-1. **Dashboard** – six summary cards (`GET /api/state?view=summary`), line filter, and real charts
-   (`GET /api/analytics`) for the 24h production trend and net total by line.
+1. **Dashboard** – seven summary cards (`GET /api/state?view=summary`), including a red **Rejected
+   Submissions** card, a **Production Source** filter that is shared across Dashboard / Pending / Exceptions,
+   and real charts (`GET /api/analytics`) for the 24h production trend and net total by line.
 2. **Submit Events** – Single / Batch / Raw-JSON modes posting to `POST /api/events`, with field
    validation and per-item status badges (ACCEPTED / DUPLICATE / CONFLICT / PENDING_REFERENCE / REJECTED).
 3. **Pending Acknowledgements** – selectable table from `GET /api/state?view=pending`, search + line
@@ -258,14 +259,80 @@ A ready-made Postman collection lives in `postman/CSI_FSE01.postman_collection.j
 
 ---
 
+## Change request (FSE-01): quantity limit, rejected tracking, source filter, rejected card
+
+Implemented on top of the existing modular monolith — no rewrite, no new microservices, no duplicated business
+rules between REST and MQTT.
+
+1. **COUNT quantity limit (1..500 inclusive).** `POST /api/events` and the MQTT `PROCESS_EVENTS` handler both call the
+   same shared validator (`toCountQuantity` in `src/modules/events/events.validation.ts`). A quantity of `1`, `450` or
+   `500` is accepted; `0`, negative, decimal, `501`/`600`, missing or non-integer quantities are **REJECTED** with the
+   clear reason `COUNT quantity must be an integer between 1 and 500`. Every rejected attempt is stored in
+   `submission_attempts` (classification `REJECTED`) and contributes **nothing** to `net_total`. Existing VOID /
+   duplicate / conflict rules are unchanged.
+2. **`rejected_submissions` in the summary.** `GET /api/state?view=summary` now returns a seventh field,
+   `rejected_submissions`, computed with a SQL `COUNT(*) FILTER (WHERE classification='REJECTED')` over
+   `submission_attempts`. It honours `?source_id=`, excludes `DUPLICATE`/`CONFLICT`/`PENDING_REFERENCE`, is `0` when
+   there are none, and the six existing fields are unchanged. The MQTT completed-challenge response embeds the same
+   value because it reuses the shared `getSummary` — there is no second implementation.
+3. **Shared "Production Source" filter.** A dropdown near the Dashboard heading (default **All Sources**) is held in a
+   React context (`frontend/src/hooks/useSourceFilter.tsx`) so Dashboard, Pending Acknowledgements and Exceptions all
+   read and write the same source and it survives navigation. Options come from `GET /api/production-lines` (not
+   hard-coded). When a source is selected the pages add `?source_id=`; when *All Sources* they omit it. Requests are
+   load-guarded so a slow response can never overwrite a newer one.
+4. **Seventh "Rejected Submissions" card.** Rendered from `summary.rejected_submissions`, styled with a red Ban icon so
+   it reads as a failure metric distinct from the green/blue success cards, updates on refresh and respects the active
+   source filter, and shows `0` when empty. The card grid expands to four columns on wide screens.
+
+### Manual verification (how to test)
+
+```bash
+# accepted (1, 450, 500) and rejected (>500, 0, negative, decimal, missing, bad type)
+curl -s -X POST localhost:3000/api/events -H 'Content-Type: application/json' \
+ -d '{"source_id":"LINE-01","event_id":"EV-A","type":"COUNT","quantity":450,"event_time":"2026-10-09T10:00:00Z"}'
+curl -s -X POST localhost:3000/api/events -H 'Content-Type: application/json' \
+ -d '{"source_id":"LINE-01","event_id":"EV-B","type":"COUNT","quantity":501,"event_time":"2026-10-09T10:01:00Z"}'
+# rejected summary, overall and per source
+curl -s 'localhost:3000/api/state?view=summary'
+curl -s 'localhost:3000/api/state?source_id=LINE-01&view=summary'
+```
+
+### SQL verification queries
+
+```sql
+-- every rejected attempt, with the stored reason
+SELECT event_id, source_id, classification, error, received_at
+FROM submission_attempts
+WHERE classification='REJECTED' ORDER BY id;
+
+-- the exact number the API reports as rejected_submissions (all sources)
+SELECT COUNT(*) AS rejected_submissions
+FROM submission_attempts WHERE classification='REJECTED';
+
+-- same, per source (matches ?source_id=)
+SELECT source_id, COUNT(*) AS rejected_submissions
+FROM submission_attempts WHERE classification='REJECTED'
+GROUP BY source_id;
+
+-- prove a rejected COUNT never moved the net total
+SELECT source_id, COALESCE(SUM(quantity),0) AS net_total
+FROM production_events
+WHERE event_type='COUNT' AND reversed_by_event_id IS NULL
+GROUP BY source_id;
+```
+
+---
+
 ## Tests
 
 ```bash
-# backend (34 tests): business rules, concurrency, HTTP contract, MQTT, new endpoints
+# backend (50 tests): business rules, concurrency, HTTP contract, MQTT, new endpoints,
+# and the change-request suite (quantity boundaries, rejected storage, summary counting/filtering, MQTT parity)
 npm test
 
-# frontend (9 tests): dashboard values, COUNT/VOID payloads, validation, pending ack,
-# exceptions filtering, MQTT status, production lines, error states
+# frontend (12 tests): dashboard values incl. the 7th rejected card, the shared Production
+# Source filter, COUNT/VOID payloads, validation, pending ack, exceptions filtering,
+# MQTT status, production lines, error states
 cd frontend && npm test
 ```
 
@@ -279,5 +346,7 @@ Frontend tests run in jsdom with a stubbed `fetch` and assert the requests the U
 
 ## Documentation
 
-* `TECHNICAL_EXPLANATION.md` — architecture, entity model, transaction/concurrency strategy, assumptions.
-* `AI_USAGE.md` — disclosure of AI assistance.
+* `TECHNICAL_EXPLANATION.md` — architecture, entity model, transaction/concurrency strategy, assumptions, and the
+  FSE-01 change request.
+* `AI_USAGE.md` — disclosure of AI assistance (planning discussion + coding agent).
+* `AI_CONVERSATION.md` — a partial, clearly-labelled record of the AI-assisted planning discussion.
