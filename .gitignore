@@ -1,0 +1,28 @@
+# dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# environment secrets - never commit
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+logs/
+
+# editor / os
+.vscode/
+.idea/
+.DS_Store
+
+# test artifacts
+*.sqlite
+*.sqlite3
+
+# local scratch
+dl/
+*.pdf
