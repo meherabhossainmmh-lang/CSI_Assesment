@@ -42,6 +42,8 @@ export interface Summary {
   unresolved: number;
   duplicates: number;
   conflicts: number;
+  /** Change request FSE-01/02: stored REJECTED submission attempts. */
+  rejected_submissions: number;
 }
 
 export type AckStatus = 'ACKED' | 'ALREADY_ACKED' | 'NOT_READY' | 'NOT_FOUND';

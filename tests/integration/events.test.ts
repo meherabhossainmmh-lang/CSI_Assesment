@@ -65,7 +65,7 @@ describe('COUNT / VOID business rules', () => {
   it('invalid quantity is REJECTED with a clear message', async () => {
     const res = await submit(countEvent('LINE-01', 'EV-300', 'COUNT', -2));
     expect(res[0].status).toBe('REJECTED');
-    expect(res[0].message).toMatch(/positive integer/);
+    expect(res[0].message).toMatch(/between 1 and 500/);
   });
 
   it('mixed batch keeps order and does not drop valid items', async () => {

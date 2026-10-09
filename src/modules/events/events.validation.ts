@@ -24,13 +24,17 @@ export type ValidationResult =
   | { ok: true; normalized: NormalizedEvent; hash: string }
   | { ok: false; errors: string[] };
 
-function toPositiveInt(value: unknown): number | null {
+/** Change request FSE-01/01: a COUNT quantity must be an integer 1..500. */
+export const COUNT_MIN = 1;
+export const COUNT_MAX = 500;
+
+function toCountQuantity(value: unknown): number | null {
   if (typeof value === 'number') {
-    return Number.isInteger(value) && value > 0 ? value : null;
+    return Number.isInteger(value) && value >= COUNT_MIN && value <= COUNT_MAX ? value : null;
   }
   if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
     const n = Number.parseInt(value.trim(), 10);
-    return n > 0 ? n : null;
+    return n >= COUNT_MIN && n <= COUNT_MAX ? n : null;
   }
   return null;
 }
@@ -84,10 +88,10 @@ export function validateEvent(raw: unknown): ValidationResult {
   let targetEventId: string | null = null;
   if (type === 'COUNT') {
     if (data.quantity === undefined || data.quantity === null) {
-      errors.push('COUNT requires a positive integer quantity');
+      errors.push('COUNT requires a quantity (integer between 1 and 500)');
     } else {
-      const q = toPositiveInt(data.quantity);
-      if (q === null) errors.push('COUNT quantity must be a positive integer');
+      const q = toCountQuantity(data.quantity);
+      if (q === null) errors.push('COUNT quantity must be an integer between 1 and 500');
       else quantity = q;
     }
     const target = toOptionalString(data.target_event_id);

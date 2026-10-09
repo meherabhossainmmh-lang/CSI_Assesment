@@ -21,7 +21,8 @@ export async function getSummary(db: Queryable, sourceId: string | null): Promis
   const attempts = await db.query(
     `SELECT
        COUNT(*) FILTER (WHERE classification='DUPLICATE') AS duplicates,
-       COUNT(*) FILTER (WHERE classification='CONFLICT') AS conflicts
+       COUNT(*) FILTER (WHERE classification='CONFLICT') AS conflicts,
+       COUNT(*) FILTER (WHERE classification='REJECTED') AS rejected_submissions
      FROM submission_attempts
      WHERE ${SOURCE_FILTER}`,
     [sourceId],
@@ -36,6 +37,7 @@ export async function getSummary(db: Queryable, sourceId: string | null): Promis
     unresolved: Number(e.unresolved),
     duplicates: Number(a.duplicates),
     conflicts: Number(a.conflicts),
+    rejected_submissions: Number(a.rejected_submissions),
   };
 }
 
