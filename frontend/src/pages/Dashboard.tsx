@@ -127,9 +127,9 @@ export function Dashboard() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip labelFormatter={(h) => `Hour ${h}`} />
                   <Legend />
-                  <Bar dataKey="count_total" name="COUNT" fill="#10B981" />
-                  <Bar dataKey="void_total" name="VOID" fill="#EF4444" />
-                  <Line type="monotone" dataKey="net_total" name="Net Total" stroke="#2563EB" dot={false} />
+                  <Bar dataKey="count_total" name="COUNT" fill="#10B981" isAnimationActive={false} />
+                  <Bar dataKey="void_total" name="VOID" fill="#EF4444" isAnimationActive={false} />
+                  <Line type="monotone" dataKey="net_total" name="Net Total" stroke="#2563EB" dot={false} isAnimationActive={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -148,7 +148,7 @@ export function Dashboard() {
                   <XAxis dataKey="source_id" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Bar dataKey="net_total" name="Net Total" fill="#2563EB" />
+                  <Bar dataKey="net_total" name="Net Total" fill="#2563EB" isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

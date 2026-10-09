@@ -51,7 +51,15 @@ export function MqttStatus() {
             {connected ? 'Connected' : 'Disconnected'}
           </span>
         </div>
-        <StatusBadge status={connected ? 'COMPLETED' : 'FAILED'} />
+        <span
+          className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
+            connected
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}
+        >
+          {connected ? 'Online' : 'Offline'}
+        </span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
