@@ -13,9 +13,11 @@ how AI was actually used.
 
 ## What the AI produced
 
-* Project scaffolding, TypeScript source under `src/`, SQL migration `database/migrations/001_init.sql`.
-* The Vitest suite under `tests/` (29 tests) and the documentation files (`README.md`, `TECHNICAL_EXPLANATION.md`,
-  this file) and the Postman collection.
+* Project scaffolding, TypeScript source under `src/`, SQL migrations `database/migrations/001_init.sql` and
+  `002_production_sources_ext.sql`.
+* The backend Vitest suite under `tests/` (34 tests) and the documentation files (`README.md`,
+  `TECHNICAL_EXPLANATION.md`, this file) and the Postman collection.
+* The React/Vite/Tailwind dashboard under `frontend/` (six pages) and its jsdom test suite (9 tests).
 
 ## Human direction & review
 
@@ -27,10 +29,12 @@ how AI was actually used.
 
 ## Verification (actually executed)
 
-* `npx tsc --noEmit` — clean.
-* `npm run migrate` against PostgreSQL 17 — applied `001_init.sql`.
-* `npm test` — 29/29 passing against a dedicated test database.
-* Live REST smoke test and a live MQTT challenge/replay against `152.42.238.142:1883` (recorded in the conversation).
+* `npx tsc --noEmit` (backend) and `frontend` `tsc` + `vite build` — clean.
+* `npm run migrate` against PostgreSQL 17 — applied `001_init.sql` and `002_production_sources_ext.sql`.
+* Backend `npm test` — 34/34 passing against a dedicated test database.
+* Frontend `npm test` — 9/9 passing (jsdom, stubbed fetch).
+* Live REST smoke test, live MQTT challenge/replay, and a browser-preview end-to-end pass against
+  `152.42.238.142:1883` (recorded in the conversation).
 
 ## What was NOT delegated
 

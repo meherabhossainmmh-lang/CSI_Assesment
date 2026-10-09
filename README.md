@@ -50,11 +50,35 @@ npm run migrate
 # 4. start the backend (REST + MQTT worker)
 npm start                # or: npm run dev (watch mode)
 
-# 5. run automated tests (uses a separate test database)
-npm test
+# 5. run automated tests (backend + frontend)
+npm test                       # backend (Vitest, separate test DB)
+cd frontend && npm install && npm test   # frontend (Vitest + Testing Library)
+
+# 6. (optional) run the web dashboard
+cd frontend && npm run dev     # http://localhost:5173 (proxies /api to :3000)
 ```
 
-The REST API listens on `http://localhost:3000` by default.
+The REST API listens on `http://localhost:3000`; the dashboard on `http://localhost:5173`.
+
+---
+
+## Frontend (web dashboard)
+
+Built with React + TypeScript + Vite + Tailwind CSS + React Router + Lucide icons + Recharts.
+Six pages, all driven by real backend data (no mock data, no fake totals):
+
+1. **Dashboard** – six summary cards (`GET /api/state?view=summary`), line filter, and real charts
+   (`GET /api/analytics`) for the 24h production trend and net total by line.
+2. **Submit Events** – Single / Batch / Raw-JSON modes posting to `POST /api/events`, with field
+   validation and per-item status badges (ACCEPTED / DUPLICATE / CONFLICT / PENDING_REFERENCE / REJECTED).
+3. **Pending Acknowledgements** – selectable table from `GET /api/state?view=pending`, search + line
+   filter, multi-select acknowledge via `POST /api/ack`.
+4. **Exceptions & Issues** – `GET /api/state?view=exceptions` with All / Unresolved / Rejected / Conflicts filters.
+5. **MQTT Status** – genuine worker health + recent challenges from `GET /api/mqtt/status`.
+6. **Production Lines** – real `production_sources` rows via `GET/POST/PATCH /api/production-lines`.
+
+The frontend always calls the backend with **relative `/api` URLs**; in development the Vite server proxies them to
+`:3000` (override with `VITE_API_BASE` if needed). The backend runs the MQTT client; the browser never talks MQTT.
 
 ---
 
@@ -237,12 +261,19 @@ A ready-made Postman collection lives in `postman/CSI_FSE01.postman_collection.j
 ## Tests
 
 ```bash
+# backend (34 tests): business rules, concurrency, HTTP contract, MQTT, new endpoints
 npm test
+
+# frontend (9 tests): dashboard values, COUNT/VOID payloads, validation, pending ack,
+# exceptions filtering, MQTT status, production lines, error states
+cd frontend && npm test
 ```
-29 automated tests cover COUNT totals, duplicates, VOID reversal, VOID-before-COUNT resolution, repeated acks,
+
+Backend tests cover COUNT totals, duplicates, VOID reversal, VOID-before-COUNT resolution, repeated acks,
 conflicts, invalid input, mixed batches, competing pending VOIDs, source filtering, concurrent duplicates/VOIDs,
-submission history, the HTTP contract, and MQTT replay/conflict/expiry/mismatch. Tests run against
-`TEST_DATABASE_URL` (a dedicated DB) and never touch the dev database.
+submission history, the HTTP contract, MQTT replay/conflict/expiry/mismatch, plus production-lines/analytics/mqtt-status
+endpoints. They run against `TEST_DATABASE_URL` (a dedicated DB) and never touch the dev database.
+Frontend tests run in jsdom with a stubbed `fetch` and assert the requests the UI sends and how it renders responses.
 
 ---
 

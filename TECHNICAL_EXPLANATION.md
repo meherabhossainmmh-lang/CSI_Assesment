@@ -72,6 +72,25 @@ To extract, e.g., MQTT into its own service: deploy it separately, replace the d
 contract (same input/output shapes), and swap the domain-event bus for a real broker (Kafka/RabbitMQ). Because data
 contracts and ownership are already isolated, no business rule needs to move.
 
+## Frontend architecture & data flow
+
+The React/Vite dashboard (`frontend/`) is a thin, read-mostly client over the same REST contract. Data flow:
+
+```
+Browser (React) --relative /api--> Vite dev proxy --> Express --> services --> PostgreSQL
+Browser (React) <-- JSON -- Vite dev proxy <-- Express (state/analytics/mqtt-status/lines)
+```
+
+* The frontend holds **no authoritative accounting**; every figure on the Dashboard comes from
+  `GET /api/state?view=summary` and `GET /api/analytics` (SQL aggregates). Charts render real rows only and show an
+  empty state when there is no history.
+* MQTT runs exclusively in the backend worker. `GET /api/mqtt/status` merges an in-memory runtime view
+  (connection, heartbeats, last challenge) with the durable `mqtt_challenges` history; it exposes no credentials.
+* `GET/POST/PATCH /api/production-lines` manage `production_sources` (extra `description`/`status` columns added in
+  migration 002). Sources auto-created by ingestion keep defaults, so the required event APIs are unchanged.
+* Additional endpoints are strictly additive and read-only where possible; the three assessment APIs
+  (`POST /api/events`, `GET /api/state`, `POST /api/ack`) keep their exact behavior.
+
 ## Assumptions & ambiguities (recorded per instructions)
 
 1. **event_id uniqueness.** §5.1 says an event ID is "globally unique across all production sources," while the DB
