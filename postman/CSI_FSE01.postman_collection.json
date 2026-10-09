@@ -1,0 +1,86 @@
+{
+  "info": {
+    "name": "CSI FSE-01 Production Events Backend",
+    "description": "REST examples for the production event processing backend. Set base=http://localhost:3000.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [ { "key": "base", "value": "http://localhost:3000" } ],
+  "item": [
+    {
+      "name": "Valid COUNT +5",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-101\",\"type\":\"COUNT\",\"quantity\":5,\"target_event_id\":null,\"event_time\":\"2026-10-09T10:30:00Z\"}" } }
+    },
+    {
+      "name": "Duplicate COUNT (same body)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-101\",\"type\":\"COUNT\",\"quantity\":5,\"target_event_id\":null,\"event_time\":\"2026-10-09T10:30:00Z\"}" } }
+    },
+    {
+      "name": "Conflict (same id, different quantity)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-101\",\"type\":\"COUNT\",\"quantity\":9,\"target_event_id\":null,\"event_time\":\"2026-10-09T10:30:00Z\"}" } }
+    },
+    {
+      "name": "Valid VOID (reverse EV-101)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-102\",\"type\":\"VOID\",\"target_event_id\":\"EV-101\",\"event_time\":\"2026-10-09T10:35:00Z\"}" } }
+    },
+    {
+      "name": "VOID before COUNT (pending)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-200\",\"type\":\"VOID\",\"target_event_id\":\"EV-199\",\"event_time\":\"2026-10-09T10:36:00Z\"}" } }
+    },
+    {
+      "name": "Resolve pending (send target COUNT EV-199)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-199\",\"type\":\"COUNT\",\"quantity\":3,\"event_time\":\"2026-10-09T10:37:00Z\"}" } }
+    },
+    {
+      "name": "Invalid event (bad quantity)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "{\"source_id\":\"LINE-01\",\"event_id\":\"EV-300\",\"type\":\"COUNT\",\"quantity\":-2,\"event_time\":\"2026-10-09T10:38:00Z\"}" } }
+    },
+    {
+      "name": "Mixed batch (valid + invalid)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/events" },
+        "body": { "mode": "raw", "raw": "[{\"source_id\":\"LINE-01\",\"event_id\":\"EV-400\",\"type\":\"COUNT\",\"quantity\":2,\"event_time\":\"2026-10-09T10:39:00Z\"},{\"source_id\":\"LINE-01\",\"event_id\":\"EV-401\",\"type\":\"COUNT\",\"quantity\":\"bad\",\"event_time\":\"2026-10-09T10:39:00Z\"}]" } }
+    },
+    {
+      "name": "State summary",
+      "request": { "method": "GET", "url": { "raw": "{{base}}/api/state?view=summary" } }
+    },
+    {
+      "name": "State summary (filtered)",
+      "request": { "method": "GET", "url": { "raw": "{{base}}/api/state?source_id=LINE-01&view=summary" } }
+    },
+    {
+      "name": "State pending",
+      "request": { "method": "GET", "url": { "raw": "{{base}}/api/state?view=pending" } }
+    },
+    {
+      "name": "State exceptions",
+      "request": { "method": "GET", "url": { "raw": "{{base}}/api/state?view=exceptions" } }
+    },
+    {
+      "name": "Acknowledge EV-101",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/ack" },
+        "body": { "mode": "raw", "raw": "{\"event_ids\":[\"EV-101\"]}" } }
+    },
+    {
+      "name": "Repeated acknowledgement (safe)",
+      "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}],
+        "url": { "raw": "{{base}}/api/ack" },
+        "body": { "mode": "raw", "raw": "{\"event_ids\":[\"EV-101\"]}" } }
+    }
+  ]
+}
