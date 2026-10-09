@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, CheckCheck } from 'lucide-react';
+import { useSourceFilter } from '../hooks/useSourceFilter';
 import { getPending } from '../services/state';
 import { acknowledge } from '../services/acknowledgements';
 import { listLines } from '../services/productionLines';
@@ -12,23 +13,27 @@ export function PendingAcknowledgements() {
   const [lines, setLines] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [lineFilter, setLineFilter] = useState('');
+  const { source, setSource } = useSourceFilter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acking, setAcking] = useState(false);
   const [feedback, setFeedback] = useState<AckResult[] | null>(null);
+  const loadId = useRef(0);
 
   const load = useCallback(async () => {
+    const id = ++loadId.current;
     try {
-      const p = await getPending();
+      const p = await getPending(source || null);
+      if (id !== loadId.current) return;
       setPending(p);
       setError(null);
     } catch (e) {
+      if (id !== loadId.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load pending events');
     } finally {
-      setLoading(false);
+      if (id === loadId.current) setLoading(false);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     load();
@@ -40,9 +45,9 @@ export function PendingAcknowledgements() {
       pending.filter(
         (p) =>
           (!search || p.event_id.toLowerCase().includes(search.toLowerCase())) &&
-          (!lineFilter || p.source_id === lineFilter),
+          (!source || p.source_id === source),
       ),
-    [pending, search, lineFilter],
+    [pending, search, source],
   );
 
   const allSelected = filtered.length > 0 && filtered.every((p) => selected.includes(p.event_id));
@@ -86,8 +91,8 @@ export function PendingAcknowledgements() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by event ID…" className="rounded-md border border-slate-300 py-2 pl-8 pr-3 text-sm" />
           </div>
-          <select value={lineFilter} onChange={(e) => setLineFilter(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-            <option value="">All Lines</option>
+          <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="Production Source" className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All Sources</option>
             {lines.map((l) => (
               <option key={l} value={l}>{l}</option>
             ))}

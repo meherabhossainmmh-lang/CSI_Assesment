@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   TrendingUp,
   FileCheck2,
@@ -6,8 +6,10 @@ import {
   Link2,
   CopyX,
   TriangleAlert,
+  Ban,
   RefreshCw,
 } from 'lucide-react';
+import { useSourceFilter } from '../hooks/useSourceFilter';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -30,23 +32,27 @@ export function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [lines, setLines] = useState<string[]>([]);
-  const [source, setSource] = useState<string>('');
+  const { source, setSource } = useSourceFilter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadId = useRef(0); // ignore responses for a previously selected source
 
   const load = useCallback(async () => {
+    const id = ++loadId.current;
     try {
       const [s, a] = await Promise.all([
         getSummary(source || null),
         getAnalytics(24),
       ]);
+      if (id !== loadId.current) return; // stale response for an old source
       setSummary(s);
       setAnalytics(a);
       setError(null);
     } catch (e) {
+      if (id !== loadId.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load dashboard');
     } finally {
-      setLoading(false);
+      if (id === loadId.current) setLoading(false);
     }
   }, [source]);
 
@@ -74,13 +80,16 @@ export function Dashboard() {
           <p className="text-sm text-slate-500">Live overview of production events</p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600" htmlFor="prod-source">
+            Production Source
+          </label>
           <select
+            id="prod-source"
             value={source}
             onChange={(e) => setSource(e.target.value)}
             className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-            aria-label="Filter by production line"
           >
-            <option value="">All Lines</option>
+            <option value="">All Sources</option>
             {lines.map((l) => (
               <option key={l} value={l}>
                 {l}
@@ -100,13 +109,14 @@ export function Dashboard() {
       {loading && !summary && <Loading label="Loading production data…" />}
 
       {summary && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <StatCard label="Net Total" value={summary.net_total} sub="Total production" icon={TrendingUp} tone="green" />
           <StatCard label="Processed" value={summary.processed_events} sub="Accepted events" icon={FileCheck2} tone="blue" />
           <StatCard label="Pending ACK" value={summary.pending_ack} sub="Needs review" icon={Clock4} tone="orange" />
           <StatCard label="Unresolved" value={summary.unresolved} sub="Pending reference" icon={Link2} tone="purple" />
           <StatCard label="Duplicates" value={summary.duplicates} sub="Ignored submissions" icon={CopyX} tone="red" />
           <StatCard label="Conflicts" value={summary.conflicts} sub="Data mismatch" icon={TriangleAlert} tone="red" />
+          <StatCard label="Rejected Submissions" value={summary.rejected_submissions} sub="Failed validation" icon={Ban} tone="red" />
         </div>
       )}
 

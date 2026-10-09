@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { SourceFilterProvider } from './hooks/useSourceFilter';
 import { Layout } from './components/layout/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { SubmitEvents } from './pages/SubmitEvents';
@@ -10,6 +11,7 @@ import { ProductionLines } from './pages/ProductionLines';
 export default function App() {
   return (
     <BrowserRouter>
+      <SourceFilterProvider>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
@@ -20,6 +22,7 @@ export default function App() {
           <Route path="/lines" element={<ProductionLines />} />
         </Route>
       </Routes>
+      </SourceFilterProvider>
     </BrowserRouter>
   );
 }

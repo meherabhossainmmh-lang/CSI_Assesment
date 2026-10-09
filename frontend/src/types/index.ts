@@ -5,6 +5,7 @@ export interface Summary {
   unresolved: number;
   duplicates: number;
   conflicts: number;
+  rejected_submissions: number;
 }
 
 export type ItemStatus = 'ACCEPTED' | 'DUPLICATE' | 'CONFLICT' | 'PENDING_REFERENCE' | 'REJECTED';

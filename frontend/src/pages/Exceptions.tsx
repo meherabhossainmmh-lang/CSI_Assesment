@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSourceFilter } from '../hooks/useSourceFilter';
 import { getExceptions } from '../services/state';
 import { StatusBadge } from '../components/status/StatusBadge';
 import { Loading, ErrorState, EmptyState } from '../components/feedback/States';
@@ -9,19 +10,25 @@ type Filter = 'all' | 'unresolved' | 'rejected' | 'conflicts';
 export function Exceptions() {
   const [rows, setRows] = useState<ExceptionRow[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
+  const { source } = useSourceFilter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadId = useRef(0);
 
   const load = useCallback(async () => {
+    const id = ++loadId.current;
     try {
-      setRows(await getExceptions());
+      const r = await getExceptions(source || null);
+      if (id !== loadId.current) return;
+      setRows(r);
       setError(null);
     } catch (e) {
+      if (id !== loadId.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load exceptions');
     } finally {
-      setLoading(false);
+      if (id === loadId.current) setLoading(false);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     load();
@@ -52,7 +59,10 @@ export function Exceptions() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Exceptions &amp; Issues</h1>
-        <p className="text-sm text-slate-500">Unresolved references, rejected events and conflicts</p>
+        <p className="text-sm text-slate-500">
+          Unresolved references, rejected events and conflicts
+          {source && <span className="ml-2 rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Source: {source}</span>}
+        </p>
       </div>
 
       <div className="card p-4">

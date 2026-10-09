@@ -2,9 +2,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PendingAcknowledgements } from '../pages/PendingAcknowledgements';
+import { SourceFilterProvider } from '../hooks/useSourceFilter';
 import { mockFetch } from '../test/fetchMock';
 
 afterEach(() => vi.unstubAllGlobals());
+
+const renderWithProvider = (ui: React.ReactElement) =>
+  render(<SourceFilterProvider>{ui}</SourceFilterProvider>);
 
 const PENDING = [
   { event_id: 'EV-1', source_id: 'LINE-01', event_type: 'COUNT', quantity: 5, target_event_id: null, event_time: '2025-01-01T10:00:00Z', status: 'ACCEPTED', received_at: '2025-01-01T10:00:00Z' },
@@ -20,7 +24,7 @@ describe('PendingAcknowledgements', () => {
         return { results: [{ event_id: 'EV-1', status: 'ACKED', message: 'Acknowledged' }] };
       return {};
     });
-    render(<PendingAcknowledgements />);
+    renderWithProvider(<PendingAcknowledgements />);
     expect(await screen.findByText('EV-1')).toBeInTheDocument();
     expect(screen.getByText('EV-2')).toBeInTheDocument();
 
@@ -33,5 +37,21 @@ describe('PendingAcknowledgements', () => {
       expect(ack!.body).toEqual({ event_ids: ['EV-1'] });
     });
     expect(await screen.findByText('ACKED')).toBeInTheDocument();
+  });
+
+  it('applies the shared Production Source filter to the pending query', async () => {
+    const { calls } = mockFetch((url) => {
+      if (url.includes('/api/state')) return { pending: PENDING };
+      if (url.includes('/api/production-lines')) return { lines: [{ source_id: 'LINE-01' }] };
+      if (url.includes('/api/ack')) return { results: [] };
+      return {};
+    });
+    renderWithProvider(<PendingAcknowledgements />);
+    const select = await screen.findByLabelText('Production Source');
+    await userEvent.selectOptions(select, 'LINE-01');
+    await waitFor(() => {
+      const stateCalls = calls.filter((c) => c.url.includes('/api/state'));
+      expect(stateCalls.some((c) => c.url.includes('source_id=LINE-01'))).toBe(true);
+    });
   });
 });
